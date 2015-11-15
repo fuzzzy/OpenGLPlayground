@@ -6,7 +6,9 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.Log;
 
+import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -19,6 +21,7 @@ import javax.microedition.khronos.opengles.GL10;
 public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
 
     private static final String TAG = "Renderer";
+    private static final int BYTES_PER_FLOAT = 4;
     Context context;
 
     public PlayAroundRenderer(Context c) {
@@ -28,33 +31,18 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
 
     @Override
     public void onSurfaceCreated(GL10 ignore, EGLConfig config) {
-        // Ignore the passed-in GL10 interface, and use the GLES20
-        // class's static methods instead.
-//        mProgram = createProgram(mVertexShader, mFragmentShader);
-//        if (mProgram == 0) {
-//            return;
-//        }
-//        maPositionHandle = GLES20.glGetAttribLocation(mProgram, "aPosition");
-//        checkGlError("glGetAttribLocation aPosition");
-//        if (maPositionHandle == -1) {
-//            throw new RuntimeException("Could not get attrib location for aPosition");
-//        }
-//        maTextureHandle = GLES20.glGetAttribLocation(mProgram, "aTextureCoord");
-//        checkGlError("glGetAttribLocation aTextureCoord");
-//        if (maTextureHandle == -1) {
-//            throw new RuntimeException("Could not get attrib location for aTextureCoord");
-//        }
-//
-//        muMVPMatrixHandle = GLES20.glGetUniformLocation(mProgram, "uMVPMatrix");
-//        checkGlError("glGetUniformLocation uMVPMatrix");
-//        if (muMVPMatrixHandle == -1) {
-//            throw new RuntimeException("Could not get attrib location for uMVPMatrix");
-//        }
 
-        IntBuffer b = IntBuffer.allocate(1);
-        //b.put(55);
-        GLES20.glGenBuffers(1, b);
-        b.put(3);
+        int[] vbo = new int[1];
+
+        GLES20.glGenBuffers(1, vbo, 0); // Generate 1 buffer
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo[0]);
+
+        final FloatBuffer verticesBuffer = ByteBuffer.allocateDirect(vertices.length * BYTES_PER_FLOAT)
+                .order(ByteOrder.nativeOrder()).asFloatBuffer();
+
+        verticesBuffer.put(vertices).position(0);
+
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, vertices.length, verticesBuffer, GLES20.GL_STATIC_DRAW);
     }
 
     @Override
