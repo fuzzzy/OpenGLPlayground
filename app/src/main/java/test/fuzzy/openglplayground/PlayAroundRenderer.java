@@ -132,12 +132,14 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
         updateCamera();
     }
 
+    float[] eyeViewMatrix = new float[16];
     @Override
     public void onDrawEye(Eye eye) {
         GLES20.glClearColor(.5f, .5f, .5f, 1f);
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);
 
-        Matrix.multiplyMM(MVPMatrix, 0, viewMatrix, 0, modelMatrix, 0);
+        Matrix.multiplyMM(eyeViewMatrix, 0, eye.getEyeView(), 0, viewMatrix, 0);
+        Matrix.multiplyMM(MVPMatrix, 0, eyeViewMatrix, 0, modelMatrix, 0);
         Matrix.multiplyMM(MVPMatrix, 0, projMatrix, 0, MVPMatrix, 0);
         GLES20.glUniformMatrix4fv(MVPMatrixHandle, 1, false, MVPMatrix, 0);
 
@@ -146,9 +148,7 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
 
     private void drawRoute()
     {
-        routeBuffer.position(0);
         GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, routeBuffer);
-
         GLES20.glEnableVertexAttribArray(positionHandle);
 
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointsCount);
