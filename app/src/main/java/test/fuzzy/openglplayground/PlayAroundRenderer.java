@@ -32,6 +32,7 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
     private int positionHandle;
     private int MVPMatrixHandle;
 
+    float[] eyeViewMatrix = new float[16];
     private float[] viewMatrix = new float[16];
     private float[] projMatrix = new float[16];
     private float[] modelMatrix = new float[16];
@@ -49,14 +50,14 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
     final float ROUTE_SCALE = 0.3f;
     final float BOTTOM_COORD = -1f;
 
-    final float SPEED = 0.1f;
+    final float SPEED = 0.2f;
 
     public PlayAroundRenderer(Context c) {
         context = c;
         prepareRoute();
 
         cameraMover = new TrackFollower(cameraTrack, SPEED, 0);
-        cameraDirectionMover = new TrackFollower(cameraTrack, SPEED, 1);
+        cameraDirectionMover = new TrackFollower(cameraTrack, SPEED, 2);
     }
 
     void prepareRoute() {
@@ -135,10 +136,9 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
         updateCamera();
     }
 
-    float[] eyeViewMatrix = new float[16];
     @Override
     public void onDrawEye(Eye eye) {
-        GLES20.glClearColor(.5f, .5f, .5f, 1f);
+        GLES20.glClearColor(.3f, .3f, .3f, 1f);
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);
 
         Matrix.multiplyMM(eyeViewMatrix, 0, eye.getEyeView(), 0, viewMatrix, 0);
@@ -176,7 +176,7 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
         cameraDirectionMover.tick();
         GlPoint cameraPosition = cameraMover.position();
         GlPoint lookAt = cameraDirectionMover.position();
-        
+
         Matrix.setLookAtM(viewMatrix, 0
                 , cameraPosition.x, cameraPosition.y, cameraPosition.z
                 , lookAt.x, lookAt.y, lookAt.z
