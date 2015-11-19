@@ -4,7 +4,6 @@ import android.content.Context;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
-import android.os.SystemClock;
 import android.util.Log;
 
 import java.nio.ByteBuffer;
@@ -18,9 +17,7 @@ import javax.microedition.khronos.opengles.GL10;
 /**
  * Created by fz on 14.11.15.
  */
-
 public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
-
     private static final String TAG = "Renderer";
     private static final int BYTES_PER_FLOAT = 4;
     Context context;
@@ -28,17 +25,32 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
     private int glProgram;
     private int positionHandle;
     private int MVPMatrixHandle;
-    private FloatBuffer verticesBuffer;
+
+    private float[] viewMatrix = new float[16];
+    private float[] projMatrix = new float[16];
+    private float[] modelMatrix = new float[16];
+
     private FloatBuffer routeBuffer;
 
+    GlPoint cameraPosition = new GlPoint(0,0,0);
+    GlPoint cameraSpeed = new GlPoint(0,0,0);
+    int cameraTrackTargetIdx = 1;
+
+    LinkedList<GlPoint> cameraTrack = new LinkedList<GlPoint>();
+
     int pointsCount = 0;
+
     final float ROUTE_SCALE = 0.3f;
     final float BOTTOM_COORD = -1f;
+
+    final float SPEED = 0.5f;
+
     void prepareRoute() {
         LinkedList<GlPoint> route = Utils.readPointsFromCsv(context, R.raw.route);
-        pointsCount = route.size() * 3 * BYTES_PER_FLOAT;
+        pointsCount = route.size() * 3 ;
         routeBuffer = ByteBuffer.allocateDirect(route.size() * 3 * 3 * BYTES_PER_FLOAT)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
+        cameraTrack.add(new GlPoint(route.get(0).x * ROUTE_SCALE, 1f, -route.get(0).y * ROUTE_SCALE));
 
         for(int i = 1; i < route.size(); i++) {
             GlPoint tail = route.get(i-1);
@@ -55,6 +67,8 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
             routeBuffer.put(front.x * ROUTE_SCALE).put(BOTTOM_COORD).put(-front.y * ROUTE_SCALE);
             routeBuffer.put(leftPtX * ROUTE_SCALE).put(BOTTOM_COORD).put(-leftPtY * ROUTE_SCALE);
             routeBuffer.put(rightPtX * ROUTE_SCALE).put(BOTTOM_COORD).put(-rightPtY * ROUTE_SCALE);
+
+            cameraTrack.add(new GlPoint(front.x * ROUTE_SCALE, 1f, -front.y * ROUTE_SCALE));
         }
         routeBuffer.position(0);
     }
@@ -64,26 +78,9 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
         prepareRoute();
     }
 
-    private float[] mViewMatrix = new float[16];
 
     @Override
     public void onSurfaceCreated(GL10 ignore, EGLConfig config) {
-        // Position the eye behind the origin.
-        final float eyeX = 0.0f;
-        final float eyeY = 2.0f;
-        final float eyeZ = 1.5f;
-
-        // We are looking toward the distance
-        final float lookX = 0.0f;
-        final float lookY = 0.0f;
-        final float lookZ = -15.0f;
-
-        // Set our up vector. This is where our head would be pointing were we holding the camera.
-        final float upX = 0.0f;
-        final float upY = 1.0f;
-        final float upZ = 0.0f;
-
-        Matrix.setLookAtM(mViewMatrix, 0, eyeX, eyeY, eyeZ, lookX, lookY, lookZ, upX, upY, upZ);
 
         int vertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.vertex_shader);
         int fragmentShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.fragment_shader);
@@ -96,78 +93,44 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
 
         positionHandle = GLES20.glGetAttribLocation(glProgram, "aPosition");
         MVPMatrixHandle = GLES20.glGetUniformLocation(glProgram, "uMVPMatrix");
-    }
 
-    private float[] projMatrix = new float[16];
+        Matrix.setIdentityM(modelMatrix, 0);
+        Matrix.setIdentityM(viewMatrix,0);
+    }
 
     @Override
     public void onSurfaceChanged(GL10 glUnused, int width, int height)
     {
         // Set the OpenGL viewport to the same size as the surface.
         GLES20.glViewport(0, 0, width, height);
-
-        // Create a new perspective projection matrix. The height will stay the same
-        // while the width will vary as per aspect ratio.
         final float ratio = (float) width / height;
-        final float left = -ratio;
-        final float right = ratio;
-        final float bottom = -1.0f;
-        final float top = 1.0f;
-        final float near = 1.0f;
-        final float far = 45.0f;
-
-        Matrix.frustumM(projMatrix, 0, left, right, bottom, top, near, far);
+        Matrix.frustumM(projMatrix, 0, -ratio, ratio, -1f, 1f, 1f, 40f);
     }
-
-    float vertices[] = {
-        0.0f,  0.5f, // Vertex 1 (X, Y)
-        0.5f, -0.5f, // Vertex 2 (X, Y)
-        -0.5f, -0.5f  // Vertex 3 (X, Y)
-    };
-
-    /**
-     * Store the model matrix. This matrix is used to move models from object space (where each model can be thought
-     * of being located at the center of the universe) to world space.
-     */
-    private float[] modelMatrix = new float[16];
 
     @Override
     public void onDrawFrame(GL10 gl) {
         GLES20.glClearColor(.5f, .5f, .5f, 1f);
         GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);
-// Do a complete rotation every 10 seconds.
-        long time = SystemClock.uptimeMillis() % 10000L;
-        float angleInDegrees = (360.0f / 10000.0f) * ((int) time);
-
-        // Draw the triangle facing straight on.
-        Matrix.setIdentityM(modelMatrix, 0);
-        Matrix.rotateM(modelMatrix, 0, angleInDegrees, 0.0f, 1.0f, 0.0f);
+        //TODO: bad!
+        updateCamera();
+        Matrix.multiplyMM(MVPMatrix, 0, viewMatrix, 0, modelMatrix, 0);
+        Matrix.multiplyMM(MVPMatrix, 0, projMatrix, 0, MVPMatrix, 0);
+        GLES20.glUniformMatrix4fv(MVPMatrixHandle, 1, false, MVPMatrix, 0);
 
         drawRoute();
     }
 
-    /** Allocate storage for the final combined matrix. This will be passed into the shader program. */
     private float[] MVPMatrix = new float[16];
 
 
     private void drawRoute()
     {
-        // Pass in the position information
         routeBuffer.position(0);
         GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, routeBuffer);
 
         GLES20.glEnableVertexAttribArray(positionHandle);
 
-        // This multiplies the view matrix by the model matrix, and stores the result in the MVP matrix
-        // (which currently contains model * view).
-        Matrix.multiplyMM(MVPMatrix, 0, mViewMatrix, 0, modelMatrix, 0);
-
-        // This multiplies the modelview matrix by the projection matrix, and stores the result in the MVP matrix
-        // (which now contains model * view * projection).
-        Matrix.multiplyMM(MVPMatrix, 0, projMatrix, 0, MVPMatrix, 0);
-
-        GLES20.glUniformMatrix4fv(MVPMatrixHandle, 1, false, MVPMatrix, 0);
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointsCount / 4);
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointsCount);
     }
 
     /**
@@ -201,9 +164,65 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
         return shader;
     }
 
+    int getNextTrackIdx(int currentPoint) {
+        if(cameraTrack.size() < 1 ) {
+            return -1;
+        }
+        int dstPointIdx = currentPoint + 1;
+        if(dstPointIdx >= cameraTrack.size()) {
+            dstPointIdx = 0;
+        }
+        return dstPointIdx;
+    }
+
+    float dist(final GlPoint src, final GlPoint dst) {
+        return (float)Math.sqrt((dst.x - src.x) * (dst.x - src.x) + (dst.y - src.y) * (dst.y - src.y) +  (dst.z - src.z) * (dst.z - src.z)) ;
+    }
+
+    void updateCamera() {
+        cameraPosition.x += cameraSpeed.x;
+        cameraPosition.y += cameraSpeed.y;
+        cameraPosition.z += cameraSpeed.z;
+
+        GlPoint target = cameraTrack.get(getNextTrackIdx(cameraTrackTargetIdx));
+
+        if((cameraSpeed.x == 0 && cameraSpeed.y == 0  && cameraSpeed.z == 0) || dist(cameraPosition, target) < SPEED ) {
+            float distance = 0;
+            GlPoint src;
+            GlPoint dst;
+            do {
+                cameraTrackTargetIdx = getNextTrackIdx(cameraTrackTargetIdx);
+                cameraPosition.x = cameraTrack.get(cameraTrackTargetIdx).x;
+                cameraPosition.y = cameraTrack.get(cameraTrackTargetIdx).y;
+                cameraPosition.z = cameraTrack.get(cameraTrackTargetIdx).z;
+
+                src = cameraTrack.get(cameraTrackTargetIdx);
+                dst = cameraTrack.get(getNextTrackIdx(cameraTrackTargetIdx));
+                float segmentDistance = dist(src, dst);
+                if(segmentDistance == 0) {
+                    segmentDistance = 0.0001f;
+                }
+
+                distance += segmentDistance;
+            }
+            while(distance < SPEED);
+
+            cameraSpeed.x = (dst.x - src.x) / (distance / SPEED);
+            cameraSpeed.y = (dst.y - src.y) / (distance / SPEED);
+            cameraSpeed.z = (dst.z - src.z) / (distance / SPEED);
+        }
+
+        GlPoint lookAt = cameraTrack.get(getNextTrackIdx(getNextTrackIdx(cameraTrackTargetIdx)));
+
+        Matrix.setLookAtM(viewMatrix, 0
+                , cameraPosition.x , cameraPosition.y, cameraPosition.z
+                , lookAt.x, lookAt.y, lookAt.z
+                , 0, 1, 0);
+    }
+
     private void checkGlError(String op) {
         int error;
-        while ((error = GLES20.glGetError()) != GLES20.GL_NO_ERROR) {
+        if ((error = GLES20.glGetError()) != GLES20.GL_NO_ERROR) {
             Log.e(TAG, op + ": glError " + error);
             throw new RuntimeException(op + ": glError " + error);
         }

@@ -39,7 +39,7 @@ public class Utils {
             while ((line = reader.readLine()) != null) {
                 try {
                     String[] row = line.split(",", 0);
-                    GlPoint p = new GlPoint();
+                    GlPoint p = new GlPoint(0,0,0);
                     p.x = Float.parseFloat(row[0].trim());
                     p.y = Float.parseFloat(row[1].trim());
                     p.z = Float.parseFloat(row[2].trim());
