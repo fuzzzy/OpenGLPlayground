@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.LinkedList;
+import java.util.List;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -38,9 +39,8 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
 
     private FloatBuffer routeBuffer;
 
-    GlPoint cameraPosition = new GlPoint(0,0,0);
-    GlPoint cameraSpeed = new GlPoint(0,0,0);
-    int cameraTrackTargetIdx = 1;
+    TrackFollower cameraMover;
+    TrackFollower cameraDirectionMover;
 
     LinkedList<GlPoint> cameraTrack = new LinkedList<GlPoint>();
 
@@ -54,6 +54,9 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
     public PlayAroundRenderer(Context c) {
         context = c;
         prepareRoute();
+
+        cameraMover = new TrackFollower(cameraTrack, SPEED, 0);
+        cameraDirectionMover = new TrackFollower(cameraTrack, SPEED, 1);
     }
 
     void prepareRoute() {
@@ -167,58 +170,15 @@ public class PlayAroundRenderer implements CardboardView.StereoRenderer {
         Matrix.frustumM(projMatrix, 0, -ratio, ratio, -1f, 1f, 1f, 40f);
     }
 
-    int getNextTrackIdx(int currentPoint) {
-        if(cameraTrack.size() < 1 ) {
-            return -1;
-        }
-        int dstPointIdx = currentPoint + 1;
-        if(dstPointIdx >= cameraTrack.size()) {
-            dstPointIdx = 0;
-        }
-        return dstPointIdx;
-    }
-
-    float dist(final GlPoint src, final GlPoint dst) {
-        return (float)Math.sqrt((dst.x - src.x) * (dst.x - src.x) + (dst.y - src.y) * (dst.y - src.y) +  (dst.z - src.z) * (dst.z - src.z)) ;
-    }
 
     void updateCamera() {
-        cameraPosition.x += cameraSpeed.x;
-        cameraPosition.y += cameraSpeed.y;
-        cameraPosition.z += cameraSpeed.z;
-
-        GlPoint target = cameraTrack.get(getNextTrackIdx(cameraTrackTargetIdx));
-
-        if((cameraSpeed.x == 0 && cameraSpeed.y == 0  && cameraSpeed.z == 0) || dist(cameraPosition, target) < SPEED ) {
-            float distance = 0;
-            GlPoint src;
-            GlPoint dst;
-            do {
-                cameraTrackTargetIdx = getNextTrackIdx(cameraTrackTargetIdx);
-                cameraPosition.x = cameraTrack.get(cameraTrackTargetIdx).x;
-                cameraPosition.y = cameraTrack.get(cameraTrackTargetIdx).y;
-                cameraPosition.z = cameraTrack.get(cameraTrackTargetIdx).z;
-
-                src = cameraTrack.get(cameraTrackTargetIdx);
-                dst = cameraTrack.get(getNextTrackIdx(cameraTrackTargetIdx));
-                float segmentDistance = dist(src, dst);
-                if(segmentDistance == 0) {
-                    segmentDistance = 0.0001f;
-                }
-
-                distance += segmentDistance;
-            }
-            while(distance < SPEED);
-
-            cameraSpeed.x = (dst.x - src.x) / (distance / SPEED);
-            cameraSpeed.y = (dst.y - src.y) / (distance / SPEED);
-            cameraSpeed.z = (dst.z - src.z) / (distance / SPEED);
-        }
-
-        GlPoint lookAt = cameraTrack.get(getNextTrackIdx(getNextTrackIdx(cameraTrackTargetIdx)));
-
+        cameraMover.tick();
+        cameraDirectionMover.tick();
+        GlPoint cameraPosition = cameraMover.position();
+        GlPoint lookAt = cameraDirectionMover.position();
+        
         Matrix.setLookAtM(viewMatrix, 0
-                , cameraPosition.x , cameraPosition.y, cameraPosition.z
+                , cameraPosition.x, cameraPosition.y, cameraPosition.z
                 , lookAt.x, lookAt.y, lookAt.z
                 , 0, 1, 0);
     }
