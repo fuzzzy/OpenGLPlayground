@@ -6,6 +6,11 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.util.Log;
 
+import com.google.vrtoolkit.cardboard.CardboardView;
+import com.google.vrtoolkit.cardboard.Eye;
+import com.google.vrtoolkit.cardboard.HeadTransform;
+import com.google.vrtoolkit.cardboard.Viewport;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -17,7 +22,7 @@ import javax.microedition.khronos.opengles.GL10;
 /**
  * Created by fz on 14.11.15.
  */
-public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
+public class PlayAroundRenderer implements CardboardView.StereoRenderer {
     private static final String TAG = "Renderer";
     private static final int BYTES_PER_FLOAT = 4;
     Context context;
@@ -29,6 +34,7 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
     private float[] viewMatrix = new float[16];
     private float[] projMatrix = new float[16];
     private float[] modelMatrix = new float[16];
+    private float[] MVPMatrix = new float[16];
 
     private FloatBuffer routeBuffer;
 
@@ -44,6 +50,11 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
     final float BOTTOM_COORD = -1f;
 
     final float SPEED = 0.1f;
+
+    public PlayAroundRenderer(Context c) {
+        context = c;
+        prepareRoute();
+    }
 
     void prepareRoute() {
         LinkedList<GlPoint> route = Utils.readPointsFromCsv(context, R.raw.route_);
@@ -73,15 +84,8 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
         routeBuffer.position(0);
     }
 
-    public PlayAroundRenderer(Context c) {
-        context = c;
-        prepareRoute();
-    }
-
-
     @Override
-    public void onSurfaceCreated(GL10 ignore, EGLConfig config) {
-
+    public void onSurfaceCreated(EGLConfig eglConfig) {
         int vertexShader = loadGLShader(GLES20.GL_VERTEX_SHADER, R.raw.vertex_shader);
         int fragmentShader = loadGLShader(GLES20.GL_FRAGMENT_SHADER, R.raw.fragment_shader);
 
@@ -95,51 +99,9 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
         MVPMatrixHandle = GLES20.glGetUniformLocation(glProgram, "uMVPMatrix");
 
         Matrix.setIdentityM(modelMatrix, 0);
-        Matrix.setIdentityM(viewMatrix,0);
+        Matrix.setIdentityM(viewMatrix, 0);
     }
 
-    @Override
-    public void onSurfaceChanged(GL10 glUnused, int width, int height)
-    {
-        // Set the OpenGL viewport to the same size as the surface.
-        GLES20.glViewport(0, 0, width, height);
-        final float ratio = (float) width / height;
-        Matrix.frustumM(projMatrix, 0, -ratio, ratio, -1f, 1f, 1f, 40f);
-    }
-
-    @Override
-    public void onDrawFrame(GL10 gl) {
-        GLES20.glClearColor(.5f, .5f, .5f, 1f);
-        GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);
-        //TODO: bad!
-        updateCamera();
-        Matrix.multiplyMM(MVPMatrix, 0, viewMatrix, 0, modelMatrix, 0);
-        Matrix.multiplyMM(MVPMatrix, 0, projMatrix, 0, MVPMatrix, 0);
-        GLES20.glUniformMatrix4fv(MVPMatrixHandle, 1, false, MVPMatrix, 0);
-
-        drawRoute();
-    }
-
-    private float[] MVPMatrix = new float[16];
-
-
-    private void drawRoute()
-    {
-        routeBuffer.position(0);
-        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, routeBuffer);
-
-        GLES20.glEnableVertexAttribArray(positionHandle);
-
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointsCount);
-    }
-
-    /**
-     * Converts a raw text file, saved as a resource, into an OpenGL ES shader.
-     *
-     * @param type The type of shader we will be creating.
-     * @param resId The resource ID of the raw text file about to be turned into a shader.
-     * @return The shader object handler.
-     */
     private int loadGLShader(int type, int resId) {
         String code = Utils.readRawTextFile(context, resId);
         int shader = GLES20.glCreateShader(type);
@@ -162,6 +124,47 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
         }
 
         return shader;
+    }
+
+    @Override
+    public void onNewFrame(HeadTransform headTransform) {
+        //TODO: bad!
+        updateCamera();
+    }
+
+    @Override
+    public void onDrawEye(Eye eye) {
+        GLES20.glClearColor(.5f, .5f, .5f, 1f);
+        GLES20.glClear(GLES20.GL_DEPTH_BUFFER_BIT | GLES20.GL_COLOR_BUFFER_BIT);
+
+        Matrix.multiplyMM(MVPMatrix, 0, viewMatrix, 0, modelMatrix, 0);
+        Matrix.multiplyMM(MVPMatrix, 0, projMatrix, 0, MVPMatrix, 0);
+        GLES20.glUniformMatrix4fv(MVPMatrixHandle, 1, false, MVPMatrix, 0);
+
+        drawRoute();
+    }
+
+    private void drawRoute()
+    {
+        routeBuffer.position(0);
+        GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, routeBuffer);
+
+        GLES20.glEnableVertexAttribArray(positionHandle);
+
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, pointsCount);
+    }
+
+    @Override
+    public void onFinishFrame(Viewport viewport) {
+
+    }
+
+    @Override
+    public void onSurfaceChanged(int width, int height) {
+        // Set the OpenGL viewport to the same size as the surface.
+        GLES20.glViewport(0, 0, width, height);
+        final float ratio = (float) width / height;
+        Matrix.frustumM(projMatrix, 0, -ratio, ratio, -1f, 1f, 1f, 40f);
     }
 
     int getNextTrackIdx(int currentPoint) {
@@ -226,5 +229,10 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
             Log.e(TAG, op + ": glError " + error);
             throw new RuntimeException(op + ": glError " + error);
         }
+    }
+
+    @Override
+    public void onRendererShutdown() {
+
     }
 }

@@ -14,7 +14,7 @@ public class MainActivity extends CardboardActivity {
         setContentView(R.layout.cardboard_activity);
         CardboardView cardboardView = (CardboardView) findViewById(R.id.cardboard_view);
         // Associate a CardboardView.StereoRenderer with cardboardView.
-        //cardboardView.setRenderer(this);
+        cardboardView.setRenderer(new PlayAroundRenderer(getApplicationContext()));
         // Associate the cardboardView with this activity.
         setCardboardView(cardboardView);
     }
