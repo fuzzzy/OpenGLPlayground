@@ -43,10 +43,10 @@ public class PlayAroundRenderer implements  GLSurfaceView.Renderer {
     final float ROUTE_SCALE = 0.3f;
     final float BOTTOM_COORD = -1f;
 
-    final float SPEED = 0.5f;
+    final float SPEED = 0.1f;
 
     void prepareRoute() {
-        LinkedList<GlPoint> route = Utils.readPointsFromCsv(context, R.raw.route);
+        LinkedList<GlPoint> route = Utils.readPointsFromCsv(context, R.raw.route_);
         pointsCount = route.size() * 3 ;
         routeBuffer = ByteBuffer.allocateDirect(route.size() * 3 * 3 * BYTES_PER_FLOAT)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
