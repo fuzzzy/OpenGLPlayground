@@ -10,7 +10,6 @@ public class MainActivity extends CardboardActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        super.onCreate(savedInstanceState);
         setContentView(R.layout.cardboard_activity);
         CardboardView cardboardView = (CardboardView) findViewById(R.id.cardboard_view);
         // Associate a CardboardView.StereoRenderer with cardboardView.
